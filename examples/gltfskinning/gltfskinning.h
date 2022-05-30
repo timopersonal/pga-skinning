@@ -172,7 +172,6 @@ public:
 	std::vector<Animation> animations;
 
 	uint32_t activeAnimation = 0;
-	std::vector<kln::motor> jointMotors;
 
 	~VulkanglTFModel();
 	void loadImages(tinygltf::Model &input);

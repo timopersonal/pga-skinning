@@ -314,7 +314,6 @@ void main()
                                 kln_scale(jointBivectors[int(inJointIndices.w)], inJointWeights.w))))
     );
 
-    // blend_motor = kln_exp(jointBivectors[int(inJointIndices.x)]);
     kln_point tr_p = kln_apply(blend_motor, untr_p);
 	gl_Position = uboScene.projection * uboScene.view * primitive.model * vec4(tr_p.p3.wzy, 1.0);
 	

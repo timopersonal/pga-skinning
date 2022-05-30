@@ -542,7 +542,7 @@ void VulkanglTFModel::updateJoints(VulkanglTFModel::Node *node)
 		}
 
 		// Update ssbo
-		skin.ssbo.copyTo(jointMotors.data(), jointMotors.size() * sizeof(jointMotors[0]));
+		skin.ssbo.copyTo(jointBivectors.data(), jointBivectors.size() * sizeof(jointBivectors[0]));
 	}
 
 	for (auto &child : node->children)
