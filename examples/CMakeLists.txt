@@ -68,3 +68,4 @@ function(buildExample EXAMPLE_NAME)
 endfunction(buildExample)
 
 buildExample(gltfskinning)
+buildExample(pga_test)

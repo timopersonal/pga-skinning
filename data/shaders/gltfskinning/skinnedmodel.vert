@@ -231,6 +231,47 @@ kln_point kln_apply(in kln_motor m)
 
 #endif // KLEIN_GUARD
 
+kln_motor kln_exp(in kln_line l)
+{
+    vec4 a = l.p1;
+    vec4 b = l.p2;
+    vec4 a2 = vec4(dot(a, a));
+    vec4 ab = vec4(dot(a, b));
+
+    // if (a2.x < 0.01)
+    //     return kln_motor(vec4(1, b), vec4(0.0));
+
+    vec4 a2_sqrt_rcp = vec4(1.0) / sqrt(a2);
+    vec4 u = a2 * a2_sqrt_rcp;
+    vec4 minus_v = ab * a2_sqrt_rcp;
+    vec4 norm_real = a * a2_sqrt_rcp;
+    vec4 norm_ideal = b * a2_sqrt_rcp;
+    norm_ideal = norm_ideal - (a * (ab * (a2_sqrt_rcp / a2)));
+    vec2 uv = vec2(u.x, minus_v.x);
+    vec2 sincosu = vec2(sin(uv.x), cos(uv.x));
+    vec4 sinu = vec4(sincosu.x);
+    vec4 p1_out = vec4(sincosu.y, vec3(0.0)) + (sinu * norm_real);
+
+    vec4 cosu = vec4(0.0, vec3(sincosu.y));
+    vec4 minus_vcosu = minus_v * cosu;
+    vec4 p2_out = sinu * norm_ideal;
+    p2_out = p2_out + (minus_vcosu * norm_real);
+    float minus_vsinu = uv.y * sincosu.x;
+    p2_out = vec4(minus_vsinu, vec3(0.0)) + p2_out;
+
+    return kln_motor(p1_out, p2_out);
+}
+
+kln_line kln_scale(kln_line l, float f)
+{
+    return kln_line(l.p1 * f, l.p2 * f);
+}
+
+kln_line kln_add(kln_line l1, kln_line l2)
+{
+    return kln_line(l1.p1 + l2.p1, l1.p2 + l2.p2);
+}
+
 layout (location = 0) in vec3 inPos;
 layout (location = 1) in vec3 inNormal;
 layout (location = 2) in vec2 inUV;
@@ -250,7 +291,7 @@ layout(push_constant) uniform PushConsts {
 } primitive;
 
 layout(std430, set = 1, binding = 0) readonly buffer JointMatrices {
-	mat2x4 jointDQuats[];
+	kln_line jointBivectors[];
 };
 
 layout (location = 0) out vec3 outNormal;
@@ -259,50 +300,28 @@ layout (location = 2) out vec2 outUV;
 layout (location = 3) out vec3 outViewVec;
 layout (location = 4) out vec3 outLightVec;
 
-// https://gamedev.stackexchange.com/questions/164423/help-with-dual-quaternion-skinning
-mat4 GetSkinMatrix(mat2x4 bone)
-{
-    vec4 r = bone[0];
-    vec4 t = bone[1];
-
-    return mat4(
-        1.0 - (2.0 * r.y * r.y) - (2.0 * r.z * r.z),
-              (2.0 * r.x * r.y) + (2.0 * r.w * r.z),
-              (2.0 * r.x * r.z) - (2.0 * r.w * r.y),
-        0.0,
-
-              (2.0 * r.x * r.y) - (2.0 * r.w * r.z),
-        1.0 - (2.0 * r.x * r.x) - (2.0 * r.z * r.z),
-              (2.0 * r.y * r.z) + (2.0 * r.w * r.x),
-        0.0,
-
-              (2.0 * r.x * r.z) + (2.0 * r.w * r.y),
-              (2.0 * r.y * r.z) - (2.0 * r.w * r.x),
-        1.0 - (2.0 * r.x * r.x) - (2.0 * r.y * r.y),
-        0.0,
-
-        2.0 * (-t.w * r.x + t.x * r.w - t.y * r.z + t.z * r.y),
-        2.0 * (-t.w * r.y + t.x * r.z + t.y * r.w - t.z * r.x),
-        2.0 * (-t.w * r.z - t.x * r.y + t.y * r.x + t.z * r.w),
-        1);
-}
-
 void main() 
 {
 	outNormal = inNormal;
 	outColor = inColor;
 	outUV = inUV;
 
-	// Calculate skinned matrix from weights and joint indices of the current vertex
-	mat4 skinMat = 
-		inJointWeights.x * GetSkinMatrix(jointDQuats[int(inJointIndices.x)]) +
-		inJointWeights.y * GetSkinMatrix(jointDQuats[int(inJointIndices.y)]) +
-		inJointWeights.z * GetSkinMatrix(jointDQuats[int(inJointIndices.z)]) +
-		inJointWeights.w * GetSkinMatrix(jointDQuats[int(inJointIndices.w)]);
+    kln_point untr_p = { vec4(1.0, inPos.zyx) };
+    kln_motor blend_motor = kln_exp(
+        kln_add(kln_scale(jointBivectors[int(inJointIndices.x)], inJointWeights.x),
+                kln_add(kln_scale(jointBivectors[int(inJointIndices.y)], inJointWeights.y),
+                        kln_add(kln_scale(jointBivectors[int(inJointIndices.z)], inJointWeights.z),
+                                kln_scale(jointBivectors[int(inJointIndices.w)], inJointWeights.w))))
+    );
 
-	gl_Position = uboScene.projection * uboScene.view * primitive.model * skinMat * vec4(inPos.xyz, 1.0);
+    // blend_motor = kln_exp(jointBivectors[int(inJointIndices.x)]);
+    kln_point tr_p = kln_apply(blend_motor, untr_p);
+	gl_Position = uboScene.projection * uboScene.view * primitive.model * vec4(tr_p.p3.wzy, 1.0);
 	
+    mat4 skinMat = mat4(1.0);
 	outNormal = normalize(transpose(inverse(mat3(uboScene.view * primitive.model * skinMat))) * inNormal);
+    kln_point untr_n = { vec4(0.0, outNormal.zyx) };
+    outNormal = kln_apply(blend_motor, untr_n).p3.wzy;
 
 	vec4 pos = uboScene.view * vec4(inPos, 1.0);
 	vec3 lPos = mat3(uboScene.view) * uboScene.lightPos.xyz;

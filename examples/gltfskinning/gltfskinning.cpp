@@ -207,7 +207,7 @@ void VulkanglTFModel::loadSkins(tinygltf::Model &input)
 				VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
 				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
 				&skins[i].ssbo,
-				sizeof(glm::dualquat) * skins[i].inverseBindMatrices.size(),
+				sizeof(kln::line) * skins[i].inverseBindMatrices.size(),
 				skins[i].inverseBindMatrices.data()));
 			VK_CHECK_RESULT(skins[i].ssbo.map());
 		}
@@ -360,9 +360,10 @@ void VulkanglTFModel::loadNode(const tinygltf::Node &inputNode, const tinygltf::
 				const float *positionBuffer = nullptr;
 				const float *normalsBuffer = nullptr;
 				const float *texCoordsBuffer = nullptr;
-				const uint16_t *jointIndicesBuffer = nullptr;
+				const uint8_t *jointIndicesBuffer = nullptr;
 				const float *jointWeightsBuffer = nullptr;
 				size_t vertexCount = 0;
+				int jointComponentType = 0;
 
 				// Get buffer data for vertex normals
 				if (glTFPrimitive.attributes.find("POSITION") != glTFPrimitive.attributes.end())
@@ -394,7 +395,8 @@ void VulkanglTFModel::loadNode(const tinygltf::Node &inputNode, const tinygltf::
 				{
 					const tinygltf::Accessor &accessor = input.accessors[glTFPrimitive.attributes.find("JOINTS_0")->second];
 					const tinygltf::BufferView &view = input.bufferViews[accessor.bufferView];
-					jointIndicesBuffer = reinterpret_cast<const uint16_t *>(&(input.buffers[view.buffer].data[accessor.byteOffset + view.byteOffset]));
+					jointIndicesBuffer = reinterpret_cast<const uint8_t *>(&(input.buffers[view.buffer].data[accessor.byteOffset + view.byteOffset]));
+					jointComponentType = accessor.componentType;
 				}
 				// Get vertex joint weights
 				if (glTFPrimitive.attributes.find("WEIGHTS_0") != glTFPrimitive.attributes.end())
@@ -414,8 +416,16 @@ void VulkanglTFModel::loadNode(const tinygltf::Node &inputNode, const tinygltf::
 					vert.normal = glm::normalize(glm::vec3(normalsBuffer ? glm::make_vec3(&normalsBuffer[v * 3]) : glm::vec3(0.0f)));
 					vert.uv = texCoordsBuffer ? glm::make_vec2(&texCoordsBuffer[v * 2]) : glm::vec3(0.0f);
 					vert.color = glm::vec3(1.0f);
-					vert.jointIndices = hasSkin ? glm::vec4(glm::make_vec4(&jointIndicesBuffer[v * 4])) : glm::vec4(0.0f);
-					vert.jointWeights = hasSkin ? glm::make_vec4(&jointWeightsBuffer[v * 4]) : glm::vec4(0.0f);
+					vert.jointIndices = glm::vec4(0.0f);
+					vert.jointWeights = glm::vec4(0.0f);
+					if (hasSkin)
+					{
+						if (jointComponentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE)
+							vert.jointIndices = glm::vec4(glm::make_vec4(&((uint8_t *)jointIndicesBuffer)[v * 4]));
+						else if (jointComponentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT)
+							vert.jointIndices = glm::vec4(glm::make_vec4(&((uint16_t *)jointIndicesBuffer)[v * 4]));
+						vert.jointWeights = glm::make_vec4(&jointWeightsBuffer[v * 4]);
+					}
 					vertexBuffer.push_back(vert);
 				}
 			}
@@ -506,22 +516,33 @@ void VulkanglTFModel::updateJoints(VulkanglTFModel::Node *node)
 		glm::mat4 inverseTransform = glm::inverse(getNodeMatrix(node));
 		Skin skin = skins[node->skin];
 		size_t numJoints = (uint32_t)skin.joints.size();
-		std::vector<glm::dualquat> jointDQuats(numJoints);
+		std::vector<kln::line> jointBivectors = std::vector<kln::line>(numJoints);
 		for (size_t i = 0; i < numJoints; i++)
 		{
 			glm::mat4 jointMatrix = getNodeMatrix(skin.joints[i]) * skin.inverseBindMatrices[i];
 			jointMatrix = inverseTransform * jointMatrix;
 
-			// https://gamedev.stackexchange.com/questions/164423/help-with-dual-quaternion-skinning
+			// Extract transformation data from matrix.
 			glm::quat r = glm::quat_cast(jointMatrix);
 			glm::vec3 t = glm::vec3(jointMatrix[3]);
-			jointDQuats[i] = glm::dualquat(r, glm::quat(0, t.x, t.y, t.z) * r * 0.5f);
 
-			// glm::vec3 r_euler = glm::eulerAngles(r);
-			// kln::motor kln_mot = kln::rotor(kln::euler_angles{r_euler.x, r_euler.y, r_euler.z}) * kln::translator(1.0f, t.x, t.y, t.z);
+			// Create rotor
+			glm::quat rq = glm::quat_cast(jointMatrix);
+			kln::rotor rt = kln::rotor(_mm_set_ps(rq.x, rq.y, rq.z, rq.w));
+
+			// Create translator
+			kln::translator tt = kln::translator();
+			glm::quat tq = glm::quat(0, -0.5 * t.x, -0.5 * t.y, -0.5 * t.z) * r;
+			tt.p2_ = _mm_set_ps(tq.x, tq.y, tq.z, tq.w);
+			// kln::point rtt = rt(kln::point(-0.5 * t.x, -0.5 * t.y, -0.5 * t.z));
+			// tt = kln::translator(1.0f, rtt.y(), rtt.z(), rtt.w());
+
+			// Calculate logarithm of bivector of motor
+			jointBivectors[i] = log(rt * tt);
 		}
+
 		// Update ssbo
-		skin.ssbo.copyTo(jointDQuats.data(), jointDQuats.size() * sizeof(glm::dualquat));
+		skin.ssbo.copyTo(jointMotors.data(), jointMotors.size() * sizeof(jointMotors[0]));
 	}
 
 	for (auto &child : node->children)

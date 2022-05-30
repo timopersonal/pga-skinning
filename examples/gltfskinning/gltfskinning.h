@@ -1,10 +1,10 @@
 /*
-* Vulkan Example - glTF skinned animation
-*
-* Copyright (C) 2020 by Sascha Willems - www.saschawillems.de
-*
-* This code is licensed under the MIT license (MIT) (http://opensource.org/licenses/MIT)
-*/
+ * Vulkan Example - glTF skinned animation
+ *
+ * Copyright (C) 2020 by Sascha Willems - www.saschawillems.de
+ *
+ * This code is licensed under the MIT license (MIT) (http://opensource.org/licenses/MIT)
+ */
 
 /*
  * Shows how to load and display an animated scene from a glTF file using vertex skinning
@@ -31,12 +31,14 @@
 #define STB_IMAGE_IMPLEMENTATION
 #define TINYGLTF_NO_STB_IMAGE_WRITE
 #ifdef VK_USE_PLATFORM_ANDROID_KHR
-#	define TINYGLTF_ANDROID_LOAD_FROM_ASSETS
+#define TINYGLTF_ANDROID_LOAD_FROM_ASSETS
 #endif
 #include "tiny_gltf.h"
 
 #include "vulkanexamplebase.h"
 #include <vulkan/vulkan.h>
+
+#include <klein/klein.hpp>
 
 #define ENABLE_VALIDATION false
 
@@ -44,9 +46,9 @@
 // This class is heavily simplified (compared to glTF's feature set) but retains the basic glTF structure
 class VulkanglTFModel
 {
-  public:
+public:
 	vks::VulkanDevice *vulkanDevice;
-	VkQueue            copyQueue;
+	VkQueue copyQueue;
 
 	/*
 		Base glTF structures, see gltfscene sample for details
@@ -54,14 +56,14 @@ class VulkanglTFModel
 
 	struct Vertices
 	{
-		VkBuffer       buffer;
+		VkBuffer buffer;
 		VkDeviceMemory memory;
 	} vertices;
 
 	struct Indices
 	{
-		int            count;
-		VkBuffer       buffer;
+		int count;
+		VkBuffer buffer;
 		VkDeviceMemory memory;
 	} indices;
 
@@ -70,12 +72,12 @@ class VulkanglTFModel
 	struct Material
 	{
 		glm::vec4 baseColorFactor = glm::vec4(1.0f);
-		uint32_t  baseColorTextureIndex;
+		uint32_t baseColorTextureIndex;
 	};
 
 	struct Image
 	{
-		vks::Texture2D  texture;
+		vks::Texture2D texture;
 		VkDescriptorSet descriptorSet;
 	};
 
@@ -88,7 +90,7 @@ class VulkanglTFModel
 	{
 		uint32_t firstIndex;
 		uint32_t indexCount;
-		int32_t  materialIndex;
+		int32_t materialIndex;
 	};
 
 	struct Mesh
@@ -98,16 +100,16 @@ class VulkanglTFModel
 
 	struct Node
 	{
-		Node *              parent;
-		uint32_t            index;
+		Node *parent;
+		uint32_t index;
 		std::vector<Node *> children;
-		Mesh                mesh;
-		glm::vec3           translation{};
-		glm::vec3           scale{1.0f};
-		glm::quat           rotation{};
-		int32_t             skin = -1;
-		glm::mat4           matrix;
-		glm::mat4           getLocalMatrix();
+		Mesh mesh;
+		glm::vec3 translation{};
+		glm::vec3 scale{1.0f};
+		glm::quat rotation{};
+		int32_t skin = -1;
+		glm::mat4 matrix;
+		glm::mat4 getLocalMatrix();
 	};
 
 	struct Vertex
@@ -126,12 +128,12 @@ class VulkanglTFModel
 
 	struct Skin
 	{
-		std::string            name;
-		Node *                 skeletonRoot = nullptr;
+		std::string name;
+		Node *skeletonRoot = nullptr;
 		std::vector<glm::mat4> inverseBindMatrices;
-		std::vector<Node *>    joints;
-		vks::Buffer            ssbo;
-		VkDescriptorSet        descriptorSet;
+		std::vector<Node *> joints;
+		vks::Buffer ssbo;
+		VkDescriptorSet descriptorSet;
 	};
 
 	/*
@@ -140,56 +142,57 @@ class VulkanglTFModel
 
 	struct AnimationSampler
 	{
-		std::string            interpolation;
-		std::vector<float>     inputs;
+		std::string interpolation;
+		std::vector<float> inputs;
 		std::vector<glm::vec4> outputsVec4;
 	};
 
 	struct AnimationChannel
 	{
 		std::string path;
-		Node *      node;
-		uint32_t    samplerIndex;
+		Node *node;
+		uint32_t samplerIndex;
 	};
 
 	struct Animation
 	{
-		std::string                   name;
+		std::string name;
 		std::vector<AnimationSampler> samplers;
 		std::vector<AnimationChannel> channels;
-		float                         start       = std::numeric_limits<float>::max();
-		float                         end         = std::numeric_limits<float>::min();
-		float                         currentTime = 0.0f;
+		float start = std::numeric_limits<float>::max();
+		float end = std::numeric_limits<float>::min();
+		float currentTime = 0.0f;
 	};
 
-	std::vector<Image>     images;
-	std::vector<Texture>   textures;
-	std::vector<Material>  materials;
-	std::vector<Node *>    nodes;
-	std::vector<Skin>      skins;
+	std::vector<Image> images;
+	std::vector<Texture> textures;
+	std::vector<Material> materials;
+	std::vector<Node *> nodes;
+	std::vector<Skin> skins;
 	std::vector<Animation> animations;
 
 	uint32_t activeAnimation = 0;
+	std::vector<kln::motor> jointMotors;
 
 	~VulkanglTFModel();
-	void      loadImages(tinygltf::Model &input);
-	void      loadTextures(tinygltf::Model &input);
-	void      loadMaterials(tinygltf::Model &input);
-	Node *    findNode(Node *parent, uint32_t index);
-	Node *    nodeFromIndex(uint32_t index);
-	void      loadSkins(tinygltf::Model &input);
-	void      loadAnimations(tinygltf::Model &input);
-	void      loadNode(const tinygltf::Node &inputNode, const tinygltf::Model &input, VulkanglTFModel::Node *parent, uint32_t nodeIndex, std::vector<uint32_t> &indexBuffer, std::vector<VulkanglTFModel::Vertex> &vertexBuffer);
+	void loadImages(tinygltf::Model &input);
+	void loadTextures(tinygltf::Model &input);
+	void loadMaterials(tinygltf::Model &input);
+	Node *findNode(Node *parent, uint32_t index);
+	Node *nodeFromIndex(uint32_t index);
+	void loadSkins(tinygltf::Model &input);
+	void loadAnimations(tinygltf::Model &input);
+	void loadNode(const tinygltf::Node &inputNode, const tinygltf::Model &input, VulkanglTFModel::Node *parent, uint32_t nodeIndex, std::vector<uint32_t> &indexBuffer, std::vector<VulkanglTFModel::Vertex> &vertexBuffer);
 	glm::mat4 getNodeMatrix(VulkanglTFModel::Node *node);
-	void      updateJoints(VulkanglTFModel::Node *node);
-	void      updateAnimation(float deltaTime);
-	void      drawNode(VkCommandBuffer commandBuffer, VkPipelineLayout pipelineLayout, VulkanglTFModel::Node node);
-	void      draw(VkCommandBuffer commandBuffer, VkPipelineLayout pipelineLayout);
+	void updateJoints(VulkanglTFModel::Node *node);
+	void updateAnimation(float deltaTime);
+	void drawNode(VkCommandBuffer commandBuffer, VkPipelineLayout pipelineLayout, VulkanglTFModel::Node node);
+	void draw(VkCommandBuffer commandBuffer, VkPipelineLayout pipelineLayout);
 };
 
 class VulkanExample : public VulkanExampleBase
 {
-  public:
+public:
 	bool wireframe = false;
 
 	struct ShaderData
@@ -222,15 +225,15 @@ class VulkanExample : public VulkanExampleBase
 
 	VulkanExample();
 	~VulkanExample();
-	void         loadglTFFile(std::string filename);
+	void loadglTFFile(std::string filename);
 	virtual void getEnabledFeatures();
-	void         buildCommandBuffers();
-	void         loadAssets();
-	void         setupDescriptors();
-	void         preparePipelines();
-	void         prepareUniformBuffers();
-	void         updateUniformBuffers();
-	void         prepare();
+	void buildCommandBuffers();
+	void loadAssets();
+	void setupDescriptors();
+	void preparePipelines();
+	void prepareUniformBuffers();
+	void updateUniformBuffers();
+	void prepare();
 	virtual void render();
 	virtual void OnUpdateUIOverlay(vks::UIOverlay *overlay);
 };
