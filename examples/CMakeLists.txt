@@ -67,5 +67,5 @@ function(buildExample EXAMPLE_NAME)
 	endif()
 endfunction(buildExample)
 
-buildExample(gltfskinning)
-buildExample(pga_test)
+buildExample(pgaskinning)
+buildExample(dqs)

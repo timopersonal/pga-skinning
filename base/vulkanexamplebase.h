@@ -206,6 +206,7 @@ public:
 	VkClearColorValue defaultClearColor = { { 0.025f, 0.025f, 0.025f, 1.0f } };
 
 	static std::vector<const char*> args;
+	static std::array<double, 100> timings;
 
 	// Defines a frame rate independent timer value clamped from -1.0...1.0
 	// For use in animations, rotations, etc.

@@ -3,6 +3,9 @@
 
 .github/
 imgui.ini
+timings.txt
+timings_pga.txt
+timings_dqs.txt
 
 # User-specific files
 *.suo
