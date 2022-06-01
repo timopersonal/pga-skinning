@@ -67,5 +67,6 @@ function(buildExample EXAMPLE_NAME)
 	endif()
 endfunction(buildExample)
 
-buildExample(pgaskinning)
 buildExample(dqs)
+buildExample(pgaskinning)
+buildExample(pgacayley)

@@ -993,7 +993,7 @@ void VulkanExample::updateUniformBuffers()
 
 void VulkanExample::loadAssets()
 {
-	loadglTFFile(getAssetPath() + "models/candywrap.gltf"); // "models/CesiumMan/glTF/CesiumMan.gltf"
+	loadglTFFile(getAssetPath() + "models/CesiumMan/glTF/CesiumMan.gltf"); // "models/CesiumMan/glTF/CesiumMan.gltf"
 }
 
 void VulkanExample::prepare()

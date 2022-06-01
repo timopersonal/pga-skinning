@@ -660,6 +660,10 @@ void VulkanExampleBase::renderLoop()
 			timing_file << t << std::endl;
 	}
 	timing_file.close();
+	double sum = 0.0;
+	for (double t : timings)
+		sum += t;
+	printf("Mean: %f\n", sum / timings.size());
 }
 
 void VulkanExampleBase::updateOverlay()

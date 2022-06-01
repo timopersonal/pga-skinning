@@ -525,10 +525,12 @@ void VulkanglTFModel::updateJoints(VulkanglTFModel::Node *node)
 			// Extract transformation data from matrix.
 			glm::quat r = glm::quat_cast(jointMatrix);
 			glm::vec3 t = glm::vec3(jointMatrix[3]);
+			glm::dualquat dq = glm::inverse(glm::dualquat(r, glm::quat(0, t.x, t.y, t.z) * r * 0.5f));
 
 			// Create rotor
-			glm::quat rq = glm::conjugate(r);
-			kln::rotor rt = kln::rotor(_mm_set_ps(rq.z, rq.y, rq.x, rq.w));
+			// glm::quat rq = glm::conjugate(r);
+			// kln::rotor rt = kln::rotor(_mm_set_ps(rq.z, rq.y, rq.x, rq.w));
+			kln::rotor rt = kln::rotor(_mm_set_ps(dq.real.z, dq.real.y, dq.real.x, dq.real.w));
 
 			// Create translator
 			kln::translator tt = kln::translator();
@@ -536,9 +538,12 @@ void VulkanglTFModel::updateJoints(VulkanglTFModel::Node *node)
 			tt.p2_ = _mm_set_ps(tq.z, tq.y, tq.x, tq.w);
 			// kln::point rtt = rt(kln::point(-0.5 * t.x, -0.5 * t.y, -0.5 * t.z));
 			// tt = kln::translator(1.0f, rtt.y(), rtt.z(), rtt.w());
+			// tt.p2_ = _mm_set_ps(t.x, t.y, t.z, 0.0);
 
 			// Calculate logarithm of bivector of motor
-			jointBivectors[i] = log(rt * tt);
+			kln::motor jointMotor = rt * tt;
+			jointMotor.p2_ = _mm_set_ps(dq.dual.z, dq.dual.y, dq.dual.x, dq.dual.w);
+			jointBivectors[i] = log(jointMotor);
 		}
 
 		// Update ssbo
@@ -1003,7 +1008,7 @@ void VulkanExample::updateUniformBuffers()
 
 void VulkanExample::loadAssets()
 {
-	loadglTFFile(getAssetPath() + "models/CesiumMan/glTF/CesiumMan.gltf"); // "models/CesiumMan/glTF/CesiumMan.gltf"
+	loadglTFFile(getAssetPath() + "models/candywrap.gltf"); // "models/CesiumMan/glTF/CesiumMan.gltf"
 }
 
 void VulkanExample::prepare()
