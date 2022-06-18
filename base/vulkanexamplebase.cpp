@@ -973,6 +973,10 @@ bool VulkanExampleBase::initVulkan()
 		return false;
 	}
 
+	pfnEnumeratePhysicalDeviceQueueFamilyPerformanceQueryCountersKHR = reinterpret_cast<PFN_vkEnumeratePhysicalDeviceQueueFamilyPerformanceQueryCountersKHR>(vkGetInstanceProcAddr(instance, "vkEnumeratePhysicalDeviceQueueFamilyPerformanceQueryCountersKHR"));
+	pfnGetPhysicalDeviceQueueFamilyPerformanceQueryPassesKHR = reinterpret_cast<PFN_vkGetPhysicalDeviceQueueFamilyPerformanceQueryPassesKHR>(vkGetInstanceProcAddr(instance, "vkGetPhysicalDeviceQueueFamilyPerformanceQueryPassesKHR"));
+	pfnAcquireProfilingLockKHR = reinterpret_cast<PFN_vkAcquireProfilingLockKHR>(vkGetInstanceProcAddr(instance, "vkAcquireProfilingLockKHR"));
+
 #if defined(VK_USE_PLATFORM_ANDROID_KHR)
 	vks::android::loadVulkanFunctions(instance);
 #endif
@@ -1054,6 +1058,15 @@ bool VulkanExampleBase::initVulkan()
 	// Vulkan device creation
 	// This is handled by a separate class that gets a logical device representation
 	// and encapsulates functions related to a device
+
+	VkPhysicalDevicePerformanceQueryFeaturesKHR pdpqf = {
+		VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PERFORMANCE_QUERY_FEATURES_KHR,
+		NULL,
+		VK_TRUE,
+		VK_FALSE,
+	};
+	deviceCreatepNextChain = &pdpqf;
+
 	vulkanDevice = new vks::VulkanDevice(physicalDevice);
 	VkResult res = vulkanDevice->createLogicalDevice(enabledFeatures, enabledDeviceExtensions, deviceCreatepNextChain);
 	if (res != VK_SUCCESS)
@@ -1062,6 +1075,62 @@ bool VulkanExampleBase::initVulkan()
 		return false;
 	}
 	device = vulkanDevice->logicalDevice;
+
+	// Get the count of counters supported
+	uint32_t counterCount;
+	pfnEnumeratePhysicalDeviceQueueFamilyPerformanceQueryCountersKHR(
+		physicalDevice,
+		vulkanDevice->queueFamilyIndices.graphics,
+		&counterCount,
+		NULL,
+		NULL);
+
+	printf("Counter Count: %d\n", counterCount);
+
+	this->counters = std::vector<VkPerformanceCounterKHR>(counterCount);
+	this->counterDescriptions = std::vector<VkPerformanceCounterDescriptionKHR>(counterCount);
+
+	// Get the counters supported
+	pfnEnumeratePhysicalDeviceQueueFamilyPerformanceQueryCountersKHR(
+		physicalDevice,
+		vulkanDevice->queueFamilyIndices.graphics,
+		&counterCount,
+		counters.data(),
+		counterDescriptions.data());
+
+	// Try to enable the first 8 counters
+	const uint32_t enabledCounterCount = std::min(counterCount, (uint32_t)8);
+	for (uint32_t i = 0; i < enabledCounterCount; i++)
+		this->enabledCounters[i] = i;
+
+	VkQueryPoolPerformanceCreateInfoKHR performanceQueryCreateInfo = {
+		VK_STRUCTURE_TYPE_QUERY_POOL_PERFORMANCE_CREATE_INFO_KHR,
+		NULL,
+		vulkanDevice->queueFamilyIndices.graphics,
+		enabledCounterCount,
+		enabledCounters};
+
+	// Get the number of passes our counters will require.
+	pfnGetPhysicalDeviceQueueFamilyPerformanceQueryPassesKHR(
+		physicalDevice,
+		&performanceQueryCreateInfo,
+		&query_numPasses);
+
+	printf("Test %d\n", query_numPasses);
+
+	VkQueryPoolCreateInfo queryPoolCreateInfo = {
+		VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO,
+		&performanceQueryCreateInfo,
+		0,
+		VK_QUERY_TYPE_PERFORMANCE_QUERY_KHR,
+		1,
+		0};
+
+	VK_CHECK_RESULT(vkCreateQueryPool(
+		device,
+		&queryPoolCreateInfo,
+		NULL,
+		&queryPool));
 
 	// Get a graphics queue from the device
 	vkGetDeviceQueue(device, vulkanDevice->queueFamilyIndices.graphics, 0, &queue);

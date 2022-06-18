@@ -527,22 +527,12 @@ void VulkanglTFModel::updateJoints(VulkanglTFModel::Node *node)
 			glm::vec3 t = glm::vec3(jointMatrix[3]);
 			glm::dualquat dq = glm::inverse(glm::dualquat(r, glm::quat(0, t.x, t.y, t.z) * r * 0.5f));
 
-			// Create rotor
-			// glm::quat rq = glm::conjugate(r);
-			// kln::rotor rt = kln::rotor(_mm_set_ps(rq.z, rq.y, rq.x, rq.w));
-			kln::rotor rt = kln::rotor(_mm_set_ps(dq.real.z, dq.real.y, dq.real.x, dq.real.w));
-
-			// Create translator
-			kln::translator tt = kln::translator();
-			glm::quat tq = glm::conjugate(glm::quat(0, t.x, t.y, t.z) * r * 0.5f);
-			tt.p2_ = _mm_set_ps(tq.z, tq.y, tq.x, tq.w);
-			// kln::point rtt = rt(kln::point(-0.5 * t.x, -0.5 * t.y, -0.5 * t.z));
-			// tt = kln::translator(1.0f, rtt.y(), rtt.z(), rtt.w());
-			// tt.p2_ = _mm_set_ps(t.x, t.y, t.z, 0.0);
-
 			// Calculate logarithm of bivector of motor
-			kln::motor jointMotor = rt * tt;
-			jointMotor.p2_ = _mm_set_ps(dq.dual.z, dq.dual.y, dq.dual.x, dq.dual.w);
+			kln::motor jointMotor(_mm_set_ps(dq.real.z, dq.real.y, dq.real.x, dq.real.w), _mm_set_ps(dq.dual.z, dq.dual.y, dq.dual.x, dq.dual.w));
+
+			// kln::rotor rr = kln::rotor(_mm_set_ps(dq.real.z, dq.real.y, dq.real.x, dq.real.w));
+			// kln::translator tr = kln::translator(t.length(), t.x, t.y, t.z);
+			// jointMotor = rr * tr;
 			jointBivectors[i] = log(jointMotor);
 		}
 
@@ -567,9 +557,9 @@ void VulkanglTFModel::updateAnimation(float deltaTime)
 	Animation &animation = animations[activeAnimation];
 	animation.currentTime += deltaTime;
 	if (animation.currentTime > animation.end)
-	{
 		animation.currentTime -= animation.end;
-	}
+	else if (animation.currentTime < 0.0)
+		animation.currentTime += animation.end;
 
 	for (auto &channel : animation.channels)
 	{
@@ -735,10 +725,21 @@ void VulkanExample::buildCommandBuffers()
 	const VkViewport viewport = vks::initializers::viewport((float)width, (float)height, 0.0f, 1.0f);
 	const VkRect2D scissor = vks::initializers::rect2D(width, height, 0, 0);
 
+	// https://www.khronos.org/registry/vulkan/specs/1.3-extensions/man/html/VK_KHR_performance_query.html
+	VkAcquireProfilingLockInfoKHR lockInfo = {
+		VK_STRUCTURE_TYPE_ACQUIRE_PROFILING_LOCK_INFO_KHR,
+		NULL,
+		0,
+		UINT64_MAX // Wait forever for the lock
+	};
+	VK_CHECK_RESULT(pfnAcquireProfilingLockKHR(device, &lockInfo));
+
 	for (int32_t i = 0; i < drawCmdBuffers.size(); ++i)
 	{
 		renderPassBeginInfo.framebuffer = frameBuffers[i];
 		VK_CHECK_RESULT(vkBeginCommandBuffer(drawCmdBuffers[i], &cmdBufInfo));
+		vkCmdResetQueryPool(drawCmdBuffers[i], queryPool, 0, 1);
+		vkCmdBeginQuery(drawCmdBuffers[i], queryPool, 0, 0);
 		vkCmdBeginRenderPass(drawCmdBuffers[i], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 		vkCmdSetViewport(drawCmdBuffers[i], 0, 1, &viewport);
 		vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor);
@@ -748,6 +749,17 @@ void VulkanExample::buildCommandBuffers()
 		glTFModel.draw(drawCmdBuffers[i], pipelineLayout);
 		drawUI(drawCmdBuffers[i]);
 		vkCmdEndRenderPass(drawCmdBuffers[i]);
+		vkCmdPipelineBarrier(drawCmdBuffers[i],
+							 VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+							 VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+							 0,
+							 0,
+							 NULL,
+							 0,
+							 NULL,
+							 0,
+							 NULL);
+		vkCmdEndQuery(drawCmdBuffers[i], queryPool, 0);
 		VK_CHECK_RESULT(vkEndCommandBuffer(drawCmdBuffers[i]));
 	}
 }
@@ -1008,7 +1020,7 @@ void VulkanExample::updateUniformBuffers()
 
 void VulkanExample::loadAssets()
 {
-	loadglTFFile(getAssetPath() + "models/candywrap.gltf"); // "models/CesiumMan/glTF/CesiumMan.gltf"
+	loadglTFFile(getAssetPath() + "models/CesiumMan/glTF/CesiumMan.gltf"); // "models/CesiumMan/glTF/CesiumMan.gltf"
 }
 
 void VulkanExample::prepare()
@@ -1029,10 +1041,21 @@ void VulkanExample::render()
 	{
 		updateUniformBuffers();
 	}
-	// POI: Advance animation
+
 	if (!paused)
 	{
-		glTFModel.updateAnimation(frameTimer);
+		if (camera.keys.right)
+			animationSpeed += 0.01f;
+		if (camera.keys.left)
+			animationSpeed -= 0.01f;
+		glTFModel.updateAnimation(frameTimer * animationSpeed);
+	}
+	else
+	{
+		if (camera.keys.right)
+			glTFModel.updateAnimation(frameTimer);
+		if (camera.keys.left)
+			glTFModel.updateAnimation(-frameTimer);
 	}
 }
 

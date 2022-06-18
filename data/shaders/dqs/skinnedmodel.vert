@@ -28,34 +28,6 @@ layout (location = 2) out vec2 outUV;
 layout (location = 3) out vec3 outViewVec;
 layout (location = 4) out vec3 outLightVec;
 
-// https://gamedev.stackexchange.com/questions/164423/help-with-dual-quaternion-skinning
-mat4 GetSkinMatrix(mat2x4 bone)
-{
-    vec4 r = bone[0];
-    vec4 t = bone[1];
-
-    return mat4(
-        1.0 - (2.0 * r.y * r.y) - (2.0 * r.z * r.z),
-              (2.0 * r.x * r.y) + (2.0 * r.w * r.z),
-              (2.0 * r.x * r.z) - (2.0 * r.w * r.y),
-        0.0,
-
-              (2.0 * r.x * r.y) - (2.0 * r.w * r.z),
-        1.0 - (2.0 * r.x * r.x) - (2.0 * r.z * r.z),
-              (2.0 * r.y * r.z) + (2.0 * r.w * r.x),
-        0.0,
-
-              (2.0 * r.x * r.z) + (2.0 * r.w * r.y),
-              (2.0 * r.y * r.z) - (2.0 * r.w * r.x),
-        1.0 - (2.0 * r.x * r.x) - (2.0 * r.y * r.y),
-        0.0,
-
-        2.0 * (-t.w * r.x + t.x * r.w - t.y * r.z + t.z * r.y),
-        2.0 * (-t.w * r.y + t.x * r.z + t.y * r.w - t.z * r.x),
-        2.0 * (-t.w * r.z - t.x * r.y + t.y * r.x + t.z * r.w),
-        1);
-}
-
 // https://gist.github.com/gszauer/3ff5001f4df5b86d2a74c74239eadea3
 vec3 QuatRotateVector(vec4 q, vec3 v) {
     vec3 u = vec3(q.x, q.y, q.z);
@@ -95,7 +67,7 @@ void main()
 		inJointWeights.y * jointDQuats[int(inJointIndices.y)] +
 		inJointWeights.z * jointDQuats[int(inJointIndices.z)] +
 		inJointWeights.w * jointDQuats[int(inJointIndices.w)];
-
+    blendDQ /= length(blendDQ[0]);
     vec3 position = DualQuatTransformPoint(blendDQ[0], blendDQ[1], inPos.xyz);
 	gl_Position = uboScene.projection * uboScene.view * primitive.model * vec4(position, 1.0);
 	
