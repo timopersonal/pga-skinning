@@ -16,7 +16,6 @@
 #endif
 
 std::vector<const char *> VulkanExampleBase::args;
-std::array<double, 100> VulkanExampleBase::timings;
 
 VkResult VulkanExampleBase::createInstance(bool enableValidation)
 {
@@ -579,7 +578,6 @@ void VulkanExampleBase::renderLoop()
 		auto tEnd = std::chrono::high_resolution_clock::now();
 		auto tDiff = std::chrono::duration<double, std::milli>(tEnd - tStart).count();
 		frameTimer = tDiff / 1000.0f;
-		timings[itCount % timings.size()] = tDiff;
 		camera.update(frameTimer);
 		if (camera.moving())
 		{
@@ -652,18 +650,6 @@ void VulkanExampleBase::renderLoop()
 	{
 		vkDeviceWaitIdle(device);
 	}
-
-	std::ofstream timing_file("timings.txt");
-	if (timing_file.is_open())
-	{
-		for (double t : timings)
-			timing_file << t << std::endl;
-	}
-	timing_file.close();
-	double sum = 0.0;
-	for (double t : timings)
-		sum += t;
-	printf("Mean: %f\n", sum / timings.size());
 }
 
 void VulkanExampleBase::updateOverlay()

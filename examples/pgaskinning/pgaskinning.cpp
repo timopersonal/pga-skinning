@@ -1019,6 +1019,7 @@ void VulkanExample::prepare()
 	setupDescriptors();
 	preparePipelines();
 	buildCommandBuffers();
+	glTFModel.updateAnimation(2.0);
 	prepared = true;
 }
 

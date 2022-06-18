@@ -40,7 +40,7 @@ namespace vks
 			freopen_s(&stream, "CONOUT$", "w+", stdout);
 			freopen_s(&stream, "CONOUT$", "w+", stderr);
 #endif
-			std::cout << std::fixed << std::setprecision(3);
+			// std::cout << std::fixed << std::setprecision(3);
 
 			// Warm up phase to get more stable frame rates
 			{
@@ -69,6 +69,7 @@ namespace vks
 				std::cout << "runtime: " << (runtime / 1000.0) << "\n";
 				std::cout << "frames : " << frameCount << "\n";
 				std::cout << "fps    : " << frameCount / (runtime / 1000.0) << "\n";
+				std::cout << "avg ms : " << (runtime / frameCount) << "\n";
 			}
 		}
 

@@ -1004,6 +1004,7 @@ void VulkanExample::prepare()
 	setupDescriptors();
 	preparePipelines();
 	buildCommandBuffers();
+	glTFModel.updateAnimation(2.0);
 	prepared = true;
 }
 
@@ -1014,10 +1015,21 @@ void VulkanExample::render()
 	{
 		updateUniformBuffers();
 	}
-	// POI: Advance animation
+
 	if (!paused)
 	{
-		glTFModel.updateAnimation(frameTimer);
+		if (camera.keys.right)
+			animationSpeed += 0.01f;
+		if (camera.keys.left)
+			animationSpeed -= 0.01f;
+		glTFModel.updateAnimation(frameTimer * animationSpeed);
+	}
+	else
+	{
+		if (camera.keys.right)
+			glTFModel.updateAnimation(frameTimer);
+		if (camera.keys.left)
+			glTFModel.updateAnimation(-frameTimer);
 	}
 }
 
