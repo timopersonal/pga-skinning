@@ -142,15 +142,6 @@ protected:
 	VkDevice device;
 	// Handle to the device graphics queue that command buffers are submitted to
 	VkQueue queue;
-	// Performance counters
-	PFN_vkEnumeratePhysicalDeviceQueueFamilyPerformanceQueryCountersKHR pfnEnumeratePhysicalDeviceQueueFamilyPerformanceQueryCountersKHR;
-	PFN_vkGetPhysicalDeviceQueueFamilyPerformanceQueryPassesKHR pfnGetPhysicalDeviceQueueFamilyPerformanceQueryPassesKHR;
-	PFN_vkAcquireProfilingLockKHR pfnAcquireProfilingLockKHR;
-	std::vector<VkPerformanceCounterKHR> counters;
-	std::vector<VkPerformanceCounterDescriptionKHR> counterDescriptions;
-	uint32_t enabledCounters[8];
-	VkQueryPool queryPool;
-	uint32_t query_numPasses;
 	// Depth buffer format (selected during Vulkan initialization)
 	VkFormat depthFormat;
 	// Command buffer pool
@@ -229,7 +220,7 @@ public:
 
 	std::string title = "Vulkan Example";
 	std::string name = "vulkanExample";
-	uint32_t apiVersion = VK_API_VERSION_1_2;
+	uint32_t apiVersion = VK_API_VERSION_1_0;
 
 	struct {
 		VkImage image;

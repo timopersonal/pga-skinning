@@ -725,21 +725,10 @@ void VulkanExample::buildCommandBuffers()
 	const VkViewport viewport = vks::initializers::viewport((float)width, (float)height, 0.0f, 1.0f);
 	const VkRect2D scissor = vks::initializers::rect2D(width, height, 0, 0);
 
-	// https://www.khronos.org/registry/vulkan/specs/1.3-extensions/man/html/VK_KHR_performance_query.html
-	VkAcquireProfilingLockInfoKHR lockInfo = {
-		VK_STRUCTURE_TYPE_ACQUIRE_PROFILING_LOCK_INFO_KHR,
-		NULL,
-		0,
-		UINT64_MAX // Wait forever for the lock
-	};
-	VK_CHECK_RESULT(pfnAcquireProfilingLockKHR(device, &lockInfo));
-
 	for (int32_t i = 0; i < drawCmdBuffers.size(); ++i)
 	{
 		renderPassBeginInfo.framebuffer = frameBuffers[i];
 		VK_CHECK_RESULT(vkBeginCommandBuffer(drawCmdBuffers[i], &cmdBufInfo));
-		vkCmdResetQueryPool(drawCmdBuffers[i], queryPool, 0, 1);
-		vkCmdBeginQuery(drawCmdBuffers[i], queryPool, 0, 0);
 		vkCmdBeginRenderPass(drawCmdBuffers[i], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 		vkCmdSetViewport(drawCmdBuffers[i], 0, 1, &viewport);
 		vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor);
@@ -749,17 +738,16 @@ void VulkanExample::buildCommandBuffers()
 		glTFModel.draw(drawCmdBuffers[i], pipelineLayout);
 		drawUI(drawCmdBuffers[i]);
 		vkCmdEndRenderPass(drawCmdBuffers[i]);
-		vkCmdPipelineBarrier(drawCmdBuffers[i],
-							 VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
-							 VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
-							 0,
-							 0,
-							 NULL,
-							 0,
-							 NULL,
-							 0,
-							 NULL);
-		vkCmdEndQuery(drawCmdBuffers[i], queryPool, 0);
+		// vkCmdPipelineBarrier(drawCmdBuffers[i],
+		// 					 VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+		// 					 VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+		// 					 0,
+		// 					 0,
+		// 					 NULL,
+		// 					 0,
+		// 					 NULL,
+		// 					 0,
+		// 					 NULL);
 		VK_CHECK_RESULT(vkEndCommandBuffer(drawCmdBuffers[i]));
 	}
 }
