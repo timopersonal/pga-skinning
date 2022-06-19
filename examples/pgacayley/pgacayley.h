@@ -193,6 +193,7 @@ class VulkanExample : public VulkanExampleBase
 {
 public:
 	bool wireframe = false;
+	float animationSpeed = 1.0f;
 
 	struct ShaderData
 	{

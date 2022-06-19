@@ -669,8 +669,8 @@ VulkanExample::VulkanExample() : VulkanExampleBase(ENABLE_VALIDATION)
 	title = "glTF vertex skinning";
 	camera.type = Camera::CameraType::lookat;
 	camera.flipY = true;
-	camera.setPosition(glm::vec3(0.0f, 0.75f, -2.0f));
-	camera.setRotation(glm::vec3(0.0f, 0.0f, 0.0f));
+	camera.setPosition(glm::vec3(0.0f, 0.7f, -1.5f));
+	camera.setRotation(glm::vec3(0.0f, 90.0f, 0.0f));
 	camera.setPerspective(60.0f, (float)width / (float)height, 0.1f, 256.0f);
 }
 

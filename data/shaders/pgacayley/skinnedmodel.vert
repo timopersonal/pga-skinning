@@ -301,7 +301,7 @@ layout(push_constant) uniform PushConsts {
 } primitive;
 
 layout(std430, set = 1, binding = 0) readonly buffer JointMatrices {
-	kln_line jointBivectors[];
+	kln_motor jointMotors[];
 };
 
 layout (location = 0) out vec3 outNormal;
@@ -310,6 +310,41 @@ layout (location = 2) out vec2 outUV;
 layout (location = 3) out vec3 outViewVec;
 layout (location = 4) out vec3 outLightVec;
 
+struct cayley_trans {
+    vec3 real;
+    vec3 dual;
+};
+
+// https://marc-b-reynolds.github.io/quaternions/2016/05/30/QuatHDAngleCayley.html
+vec3 q_cayley(vec4 q) {
+    return q.xyz*(1.0/(1.0+q.w));
+}
+
+vec4 q_cayley(vec3 v) {
+    float s = 2.0/(1.0+dot(v,v)); // 2/(1+b^2)
+    return vec4(s*v, s-1.0);
+}
+
+cayley_trans cayley_from_motor(kln_motor m)
+{
+    return cayley_trans(q_cayley(m.p1), q_cayley(m.p2));
+}
+
+kln_motor motor_from_cayley(cayley_trans t)
+{
+    return kln_motor(q_cayley(t.real), q_cayley(t.dual));
+}
+
+cayley_trans cayley_add(cayley_trans t1, cayley_trans t2)
+{
+    return cayley_trans(t1.real + t2.real, t1.dual + t2.dual);
+}
+
+cayley_trans cayley_scale(cayley_trans t, float factor)
+{
+    return cayley_trans(t.real * factor, t.dual * factor);
+}
+
 void main() 
 {
 	outNormal = inNormal;
@@ -317,17 +352,12 @@ void main()
 	outUV = inUV;
 
     kln_point untr_p = { vec4(1.0, inPos.xyz) };
-    kln_motor blend_motor = kln_exp(
-        kln_add(kln_scale(jointBivectors[int(inJointIndices.x)], inJointWeights.x),
-                kln_add(kln_scale(jointBivectors[int(inJointIndices.y)], inJointWeights.y),
-                        kln_add(kln_scale(jointBivectors[int(inJointIndices.z)], inJointWeights.z),
-                                kln_scale(jointBivectors[int(inJointIndices.w)], inJointWeights.w))))
+    kln_motor blend_motor = motor_from_cayley(
+        cayley_add(cayley_scale(cayley_from_motor(jointMotors[int(inJointIndices.x)]), inJointWeights.x),
+                cayley_add(cayley_scale(cayley_from_motor(jointMotors[int(inJointIndices.y)]), inJointWeights.y),
+                        cayley_add(cayley_scale(cayley_from_motor(jointMotors[int(inJointIndices.z)]), inJointWeights.z),
+                                cayley_scale(cayley_from_motor(jointMotors[int(inJointIndices.w)]), inJointWeights.w))))
     );
-
-    // blend_motor = kln_add(kln_scale(kln_exp(jointBivectors[int(inJointIndices.x)]), inJointWeights.x),
-    //     kln_add(kln_scale(kln_exp(jointBivectors[int(inJointIndices.y)]), inJointWeights.y),
-    //     kln_add(kln_scale(kln_exp(jointBivectors[int(inJointIndices.z)]), inJointWeights.z),
-    //     kln_scale(kln_exp(jointBivectors[int(inJointIndices.w)]), inJointWeights.w))));
 
     kln_point tr_p = kln_apply(blend_motor, untr_p);
 	gl_Position = uboScene.projection * uboScene.view * primitive.model * vec4(tr_p.p3.yzw, 1.0);

@@ -207,7 +207,7 @@ void VulkanglTFModel::loadSkins(tinygltf::Model &input)
 				VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
 				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
 				&skins[i].ssbo,
-				sizeof(kln::line) * skins[i].inverseBindMatrices.size(),
+				sizeof(kln::motor) * skins[i].inverseBindMatrices.size(),
 				skins[i].inverseBindMatrices.data()));
 			VK_CHECK_RESULT(skins[i].ssbo.map());
 		}
@@ -516,7 +516,7 @@ void VulkanglTFModel::updateJoints(VulkanglTFModel::Node *node)
 		glm::mat4 inverseTransform = glm::inverse(getNodeMatrix(node));
 		Skin skin = skins[node->skin];
 		size_t numJoints = (uint32_t)skin.joints.size();
-		std::vector<kln::line> jointBivectors = std::vector<kln::line>(numJoints);
+		std::vector<kln::motor> jointMotors = std::vector<kln::motor>(numJoints);
 		for (size_t i = 0; i < numJoints; i++)
 		{
 			glm::mat4 jointMatrix = getNodeMatrix(skin.joints[i]) * skin.inverseBindMatrices[i];
@@ -527,27 +527,17 @@ void VulkanglTFModel::updateJoints(VulkanglTFModel::Node *node)
 			glm::vec3 t = glm::vec3(jointMatrix[3]);
 			glm::dualquat dq = glm::inverse(glm::dualquat(r, glm::quat(0, t.x, t.y, t.z) * r * 0.5f));
 
-			// Create rotor
-			// glm::quat rq = glm::conjugate(r);
-			// kln::rotor rt = kln::rotor(_mm_set_ps(rq.z, rq.y, rq.x, rq.w));
-			kln::rotor rt = kln::rotor(_mm_set_ps(dq.real.z, dq.real.y, dq.real.x, dq.real.w));
-
-			// Create translator
-			kln::translator tt = kln::translator();
-			glm::quat tq = glm::conjugate(glm::quat(0, t.x, t.y, t.z) * r * 0.5f);
-			tt.p2_ = _mm_set_ps(tq.z, tq.y, tq.x, tq.w);
-			// kln::point rtt = rt(kln::point(-0.5 * t.x, -0.5 * t.y, -0.5 * t.z));
-			// tt = kln::translator(1.0f, rtt.y(), rtt.z(), rtt.w());
-			// tt.p2_ = _mm_set_ps(t.x, t.y, t.z, 0.0);
-
 			// Calculate logarithm of bivector of motor
-			kln::motor jointMotor = rt * tt;
-			jointMotor.p2_ = _mm_set_ps(dq.dual.z, dq.dual.y, dq.dual.x, dq.dual.w);
-			jointBivectors[i] = log(jointMotor);
+			kln::motor jointMotor(_mm_set_ps(dq.real.z, dq.real.y, dq.real.x, dq.real.w), _mm_set_ps(dq.dual.z, dq.dual.y, dq.dual.x, dq.dual.w));
+
+			// kln::rotor rr = kln::rotor(_mm_set_ps(dq.real.z, dq.real.y, dq.real.x, dq.real.w));
+			// kln::translator tr = kln::translator(t.length(), t.x, t.y, t.z);
+			// jointMotor = rr * tr;
+			jointMotors[i] = jointMotor;
 		}
 
 		// Update ssbo
-		skin.ssbo.copyTo(jointBivectors.data(), jointBivectors.size() * sizeof(jointBivectors[0]));
+		skin.ssbo.copyTo(jointMotors.data(), jointMotors.size() * sizeof(jointMotors[0]));
 	}
 
 	for (auto &child : node->children)
@@ -567,9 +557,9 @@ void VulkanglTFModel::updateAnimation(float deltaTime)
 	Animation &animation = animations[activeAnimation];
 	animation.currentTime += deltaTime;
 	if (animation.currentTime > animation.end)
-	{
 		animation.currentTime -= animation.end;
-	}
+	else if (animation.currentTime < 0.0)
+		animation.currentTime += animation.end;
 
 	for (auto &channel : animation.channels)
 	{
@@ -684,8 +674,8 @@ VulkanExample::VulkanExample() : VulkanExampleBase(ENABLE_VALIDATION)
 	title = "glTF vertex skinning";
 	camera.type = Camera::CameraType::lookat;
 	camera.flipY = true;
-	camera.setPosition(glm::vec3(0.0f, 0.75f, -2.0f));
-	camera.setRotation(glm::vec3(0.0f, 0.0f, 0.0f));
+	camera.setPosition(glm::vec3(0.0f, 0.7f, -1.5f));
+	camera.setRotation(glm::vec3(0.0f, 90.0f, 0.0f));
 	camera.setPerspective(60.0f, (float)width / (float)height, 0.1f, 256.0f);
 }
 
@@ -748,6 +738,16 @@ void VulkanExample::buildCommandBuffers()
 		glTFModel.draw(drawCmdBuffers[i], pipelineLayout);
 		drawUI(drawCmdBuffers[i]);
 		vkCmdEndRenderPass(drawCmdBuffers[i]);
+		// vkCmdPipelineBarrier(drawCmdBuffers[i],
+		// 					 VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+		// 					 VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+		// 					 0,
+		// 					 0,
+		// 					 NULL,
+		// 					 0,
+		// 					 NULL,
+		// 					 0,
+		// 					 NULL);
 		VK_CHECK_RESULT(vkEndCommandBuffer(drawCmdBuffers[i]));
 	}
 }
@@ -1008,7 +1008,7 @@ void VulkanExample::updateUniformBuffers()
 
 void VulkanExample::loadAssets()
 {
-	loadglTFFile(getAssetPath() + "models/candywrap.gltf"); // "models/CesiumMan/glTF/CesiumMan.gltf"
+	loadglTFFile(getAssetPath() + "models/CesiumMan/glTF/CesiumMan.gltf"); // "models/CesiumMan/glTF/CesiumMan.gltf"
 }
 
 void VulkanExample::prepare()
@@ -1019,6 +1019,7 @@ void VulkanExample::prepare()
 	setupDescriptors();
 	preparePipelines();
 	buildCommandBuffers();
+	glTFModel.updateAnimation(2.0);
 	prepared = true;
 }
 
@@ -1029,10 +1030,21 @@ void VulkanExample::render()
 	{
 		updateUniformBuffers();
 	}
-	// POI: Advance animation
+
 	if (!paused)
 	{
-		glTFModel.updateAnimation(frameTimer);
+		if (camera.keys.right)
+			animationSpeed += 0.01f;
+		if (camera.keys.left)
+			animationSpeed -= 0.01f;
+		glTFModel.updateAnimation(frameTimer * animationSpeed);
+	}
+	else
+	{
+		if (camera.keys.right)
+			glTFModel.updateAnimation(frameTimer);
+		if (camera.keys.left)
+			glTFModel.updateAnimation(-frameTimer);
 	}
 }
 
