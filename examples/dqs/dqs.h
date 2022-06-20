@@ -26,6 +26,8 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
+#define GLM_ENABLE_EXPERIMENTAL
+#include <glm/gtx/dual_quaternion.hpp>
 
 #define TINYGLTF_IMPLEMENTATION
 #define STB_IMAGE_IMPLEMENTATION
@@ -168,6 +170,7 @@ class VulkanglTFModel
 	std::vector<Node *>    nodes;
 	std::vector<Skin>      skins;
 	std::vector<Animation> animations;
+	std::vector<glm::dualquat> jointDQuats;
 
 	uint32_t activeAnimation = 0;
 

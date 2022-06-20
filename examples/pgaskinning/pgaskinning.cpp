@@ -516,7 +516,7 @@ void VulkanglTFModel::updateJoints(VulkanglTFModel::Node *node)
 		glm::mat4 inverseTransform = glm::inverse(getNodeMatrix(node));
 		Skin skin = skins[node->skin];
 		size_t numJoints = (uint32_t)skin.joints.size();
-		std::vector<kln::line> jointBivectors = std::vector<kln::line>(numJoints);
+		jointBivectors = std::vector<kln::line>(numJoints);
 		for (size_t i = 0; i < numJoints; i++)
 		{
 			glm::mat4 jointMatrix = getNodeMatrix(skin.joints[i]) * skin.inverseBindMatrices[i];
@@ -671,10 +671,10 @@ void VulkanglTFModel::draw(VkCommandBuffer commandBuffer, VkPipelineLayout pipel
 
 VulkanExample::VulkanExample() : VulkanExampleBase(ENABLE_VALIDATION)
 {
-	title = "glTF vertex skinning";
+	title = "PGA Skinning";
 	camera.type = Camera::CameraType::lookat;
 	camera.flipY = true;
-	camera.setPosition(glm::vec3(0.0f, 0.7f, -1.5f));
+	camera.setPosition(glm::vec3(0.0f, 0.7f, -5.0f));
 	camera.setRotation(glm::vec3(0.0f, 90.0f, 0.0f));
 	camera.setPerspective(60.0f, (float)width / (float)height, 0.1f, 256.0f);
 }
@@ -752,6 +752,8 @@ void VulkanExample::buildCommandBuffers()
 	}
 }
 
+#include "../common/mesh_stats.hpp"
+
 void VulkanExample::loadglTFFile(std::string filename)
 {
 	tinygltf::Model glTFInput;
@@ -798,6 +800,93 @@ void VulkanExample::loadglTFFile(std::string filename)
 		vks::tools::exitFatal("Could not open the glTF file.\n\nThe file is part of the additional asset pack.\n\nRun \"download_assets.py\" in the repository root to download the latest version.", -1);
 		return;
 	}
+
+	///
+	/// Perform some calculations on the vertex skinning.
+	///
+
+	// Find the node that contains the skinned mesh.
+	VulkanglTFModel::Node *node = nullptr;
+	for (VulkanglTFModel::Node *n : glTFModel.nodes)
+		glTFModel.updateJoints(n);
+
+	for (VulkanglTFModel::Node *n : glTFModel.nodes[0]->children)
+		if (n && n->skin > -1)
+			node = n;
+		else if (n)
+			for (VulkanglTFModel::Node *n2 : n->children)
+				if (n2 && n2->skin > -1)
+					node = n2;
+
+	// Iteration data.
+	double time_step = 1.0 / 30.0;
+	double time_passed = 0.0;
+	std::vector<double> volume_differences;
+	std::vector<double> detail_differences;
+
+	// Calculate statistics of unmorphed mesh.
+	double initial_volume = calculate_volume(vertexBuffer, indexBuffer);
+	std::vector<double> initial_local_detail = calculate_local_detail(vertexBuffer, indexBuffer);
+
+	// Walk through the animation.
+	for (double time_passed = 0.0; time_passed <= glTFModel.animations[glTFModel.activeAnimation].end; time_passed += time_step)
+	{
+		std::vector<VulkanglTFModel::Vertex> test_vertices(vertexBuffer);
+		glTFModel.updateAnimation(time_step);
+
+		// Perform vertex skinning (CPU implementation, for the image you see on the screen, look at the data/shaders directory).
+		for (uint32_t i = 0; i < test_vertices.size(); ++i)
+		{
+			VulkanglTFModel::Vertex vtx = test_vertices[i];
+			kln::point kln_vtx(vtx.pos.x, vtx.pos.y, vtx.pos.z);
+			kln::motor blend_motor = exp(
+				vtx.jointWeights.x * glTFModel.jointBivectors[vtx.jointIndices.x] +
+				vtx.jointWeights.y * glTFModel.jointBivectors[vtx.jointIndices.y] +
+				vtx.jointWeights.z * glTFModel.jointBivectors[vtx.jointIndices.z] +
+				vtx.jointWeights.w * glTFModel.jointBivectors[vtx.jointIndices.w]);
+			kln_vtx = blend_motor(kln_vtx);
+			vtx.pos.z = kln_vtx.x();
+			vtx.pos.x = kln_vtx.y();
+			vtx.pos.y = kln_vtx.z();
+			test_vertices[i] = vtx;
+		}
+
+		// Calculate statistics of deformed mesh.
+		double deformed_volume = calculate_volume(test_vertices, indexBuffer);
+		std::vector<double> deformed_local_detail = calculate_local_detail(test_vertices, indexBuffer);
+
+		// Calculate volume difference.
+		double volume_difference = diff_percent(initial_volume, deformed_volume);
+		volume_differences.push_back(volume_difference);
+
+		// Calculate detail difference.
+		std::vector<double> detail_difference(initial_local_detail.size());
+		for (uint32_t i = 0; i < vertexBuffer.size(); ++i)
+			detail_difference[i] = diff_percent(initial_local_detail[i], deformed_local_detail[i]);
+
+		double total_detail_difference = 0.0;
+		for (double diff : detail_difference)
+			total_detail_difference += diff;
+		total_detail_difference /= vertexBuffer.size();
+
+		detail_differences.push_back(total_detail_difference);
+	}
+
+	// https://www.codegrepper.com/code-examples/cpp/c%2B%2B+get+filename+from+path
+	std::string base_filename = filename.substr(filename.find_last_of("/\\") + 1);
+	std::string::size_type const p(base_filename.find_last_of('.'));
+	std::string model_name = base_filename.substr(0, p);
+
+	// Print the results to a file.
+	std::ofstream output_file("stats_pga_" + model_name + ".txt");
+	output_file << "Volume Differences" << std::endl;
+	for (double d : volume_differences)
+		output_file << d << std::endl;
+	output_file << std::endl
+				<< "Detail Differences" << std::endl;
+	for (double d : detail_differences)
+		output_file << d << std::endl;
+	output_file.close();
 
 	// Create and upload vertex and index buffer
 	size_t vertexBufferSize = vertexBuffer.size() * sizeof(VulkanglTFModel::Vertex);
@@ -1008,7 +1097,7 @@ void VulkanExample::updateUniformBuffers()
 
 void VulkanExample::loadAssets()
 {
-	loadglTFFile(getAssetPath() + "models/CesiumMan/glTF/CesiumMan.gltf"); // "models/CesiumMan/glTF/CesiumMan.gltf"
+	loadglTFFile(getAssetPath() + "models/candywrap.gltf"); // "models/CesiumMan/glTF/CesiumMan.gltf"
 }
 
 void VulkanExample::prepare()
@@ -1019,7 +1108,6 @@ void VulkanExample::prepare()
 	setupDescriptors();
 	preparePipelines();
 	buildCommandBuffers();
-	glTFModel.updateAnimation(2.0);
 	prepared = true;
 }
 

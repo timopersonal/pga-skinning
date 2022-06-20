@@ -71,8 +71,8 @@ void main()
     vec3 position = DualQuatTransformPoint(blendDQ[0], blendDQ[1], inPos.xyz);
 	gl_Position = uboScene.projection * uboScene.view * primitive.model * vec4(position, 1.0);
 	
-    mat4 skinMat = mat4(1.0);
-	outNormal = normalize(transpose(inverse(mat3(uboScene.view * primitive.model * skinMat))) * inNormal);
+	outNormal = normalize(transpose(inverse(mat3(uboScene.view * primitive.model))) * inNormal);
+	outNormal = QuatRotateVector(blendDQ[0], outNormal);
 
 	vec4 pos = uboScene.view * vec4(position, 1.0);
 	vec3 lPos = mat3(uboScene.view) * uboScene.lightPos.xyz;

@@ -267,16 +267,6 @@ kln_line kln_scale(kln_line l, float f)
     return kln_line(l.p1 * f, l.p2 * f);
 }
 
-kln_motor kln_scale(kln_motor m, float f)
-{
-    return kln_motor(m.p1 * f, m.p2 * f);
-}
-
-kln_motor kln_add(kln_motor l1, kln_motor l2)
-{
-    return kln_motor(l1.p1 + l2.p1, l1.p2 + l2.p2);
-}
-
 kln_line kln_add(kln_line l1, kln_line l2)
 {
     return kln_line(l1.p1 + l2.p1, l1.p2 + l2.p2);
@@ -324,6 +314,7 @@ void main()
                                 kln_scale(jointBivectors[int(inJointIndices.w)], inJointWeights.w))))
     );
 
+    // Interpolation of coefficients instead of 
     // blend_motor = kln_add(kln_scale(kln_exp(jointBivectors[int(inJointIndices.x)]), inJointWeights.x),
     //     kln_add(kln_scale(kln_exp(jointBivectors[int(inJointIndices.y)]), inJointWeights.y),
     //     kln_add(kln_scale(kln_exp(jointBivectors[int(inJointIndices.z)]), inJointWeights.z),
@@ -332,10 +323,9 @@ void main()
     kln_point tr_p = kln_apply(blend_motor, untr_p);
 	gl_Position = uboScene.projection * uboScene.view * primitive.model * vec4(tr_p.p3.yzw, 1.0);
 	
-    mat4 skinMat = mat4(1.0);
-	outNormal = normalize(transpose(inverse(mat3(uboScene.view * primitive.model * skinMat))) * inNormal);
+	outNormal = normalize(transpose(inverse(mat3(uboScene.view * primitive.model))) * inNormal);
     kln_point untr_n = { vec4(0.0, outNormal.xyz) };
-    outNormal = kln_apply(blend_motor, untr_n).p3.wzy;
+    outNormal = kln_apply(blend_motor, untr_n).p3.yzw;
 
 	vec4 pos = uboScene.view * vec4(inPos, 1.0);
 	vec3 lPos = mat3(uboScene.view) * uboScene.lightPos.xyz;

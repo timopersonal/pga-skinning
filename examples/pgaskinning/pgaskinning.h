@@ -170,6 +170,7 @@ public:
 	std::vector<Node *> nodes;
 	std::vector<Skin> skins;
 	std::vector<Animation> animations;
+	std::vector<kln::line> jointBivectors;
 
 	uint32_t activeAnimation = 0;
 
