@@ -314,12 +314,6 @@ void main()
                                 kln_scale(jointBivectors[int(inJointIndices.w)], inJointWeights.w))))
     );
 
-    // Interpolation of coefficients instead of 
-    // blend_motor = kln_add(kln_scale(kln_exp(jointBivectors[int(inJointIndices.x)]), inJointWeights.x),
-    //     kln_add(kln_scale(kln_exp(jointBivectors[int(inJointIndices.y)]), inJointWeights.y),
-    //     kln_add(kln_scale(kln_exp(jointBivectors[int(inJointIndices.z)]), inJointWeights.z),
-    //     kln_scale(kln_exp(jointBivectors[int(inJointIndices.w)]), inJointWeights.w))));
-
     kln_point tr_p = kln_apply(blend_motor, untr_p);
 	gl_Position = uboScene.projection * uboScene.view * primitive.model * vec4(tr_p.p3.yzw, 1.0);
 	

@@ -851,24 +851,20 @@ void VulkanExample::loadglTFFile(std::string filename)
 			test_vertices[i] = vtx;
 		}
 
-		// Calculate statistics of deformed mesh.
-		double deformed_volume = calculate_volume(test_vertices, indexBuffer);
-		std::vector<double> deformed_local_detail = calculate_local_detail(test_vertices, indexBuffer);
-
 		// Calculate volume difference.
-		double volume_difference = diff_percent(initial_volume, deformed_volume);
-		volume_differences.push_back(volume_difference);
+		double deformed_volume = calculate_volume(test_vertices, indexBuffer);
+		volume_differences.push_back(deformed_volume / initial_volume);
 
 		// Calculate detail difference.
+		std::vector<double> deformed_local_detail = calculate_local_detail(test_vertices, indexBuffer);
 		std::vector<double> detail_difference(initial_local_detail.size());
 		for (uint32_t i = 0; i < vertexBuffer.size(); ++i)
-			detail_difference[i] = diff_percent(initial_local_detail[i], deformed_local_detail[i]);
+			detail_difference[i] = abs(initial_local_detail[i] - deformed_local_detail[i]);
 
 		double total_detail_difference = 0.0;
 		for (double diff : detail_difference)
 			total_detail_difference += diff;
 		total_detail_difference /= vertexBuffer.size();
-
 		detail_differences.push_back(total_detail_difference);
 	}
 
@@ -876,6 +872,7 @@ void VulkanExample::loadglTFFile(std::string filename)
 	std::string base_filename = filename.substr(filename.find_last_of("/\\") + 1);
 	std::string::size_type const p(base_filename.find_last_of('.'));
 	std::string model_name = base_filename.substr(0, p);
+	std::transform(model_name.begin(), model_name.end(), model_name.begin(), ::tolower);
 
 	// Print the results to a file.
 	std::ofstream output_file("stats_pga_" + model_name + ".txt");
@@ -883,6 +880,7 @@ void VulkanExample::loadglTFFile(std::string filename)
 	for (double d : volume_differences)
 		output_file << d << std::endl;
 	output_file << std::endl
+				<< std::endl
 				<< "Detail Differences" << std::endl;
 	for (double d : detail_differences)
 		output_file << d << std::endl;
@@ -1097,7 +1095,7 @@ void VulkanExample::updateUniformBuffers()
 
 void VulkanExample::loadAssets()
 {
-	loadglTFFile(getAssetPath() + "models/candywrap.gltf"); // "models/CesiumMan/glTF/CesiumMan.gltf"
+	loadglTFFile(getAssetPath() + "models/CesiumMan/glTF/CesiumMan.gltf"); // "models/CesiumMan/glTF/CesiumMan.gltf"
 }
 
 void VulkanExample::prepare()
