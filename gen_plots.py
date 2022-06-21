@@ -55,14 +55,14 @@ for i, (model_name, model_data) in enumerate(data_map.items()):
         color = technique_to_color.get(technique, None)
 
         # Plot the volume differences
-        axes[i, 0].plot([x * 100 for x in volume_diff],
+        axes[i, 0].plot([x * 100 for x in volume_diff][1:],
                         label=label, color=color)
         axes[i, 0].yaxis.set_major_formatter(mtick.PercentFormatter())
         axes[i, 0].set_xlabel('$n$-th frame')
         axes[i, 0].set_ylabel('Preserved Volume')
 
         # Plot the detail differences
-        axes[i, 1].plot(detail_diff, label=label, color=color)
+        axes[i, 1].plot(detail_diff[1:], label=label, color=color)
         axes[i, 1].set_xlabel('$n$-th frame')
         axes[i, 1].set_ylabel('Total difference in local detail')
 
@@ -82,4 +82,4 @@ for ax, model in zip(axes[:, 0], data_map.keys()):
 
 # plt.legend(loc='upper left')
 plt.tight_layout()
-plt.savefig('stats_temp.png')
+plt.savefig('stats_temp.png', dpi=300)
