@@ -68,5 +68,6 @@ function(buildExample EXAMPLE_NAME)
 endfunction(buildExample)
 
 buildExample(dqs)
-buildExample(pgaskinning)
-buildExample(pgacayley)
+buildExample(bis)
+buildExample(lbs)
+# buildExample(pgacayley)

@@ -527,9 +527,6 @@ void VulkanglTFModel::updateJoints(VulkanglTFModel::Node *node)
 			glm::quat r = glm::quat_cast(jointMatrix);
 			glm::vec3 t = glm::vec3(jointMatrix[3]);
 			jointDQuats[i] = glm::dualquat(r, glm::quat(0, t.x, t.y, t.z) * r * 0.5f);
-
-			// glm::vec3 r_euler = glm::eulerAngles(r);
-			// kln::motor kln_mot = kln::rotor(kln::euler_angles{r_euler.x, r_euler.y, r_euler.z}) * kln::translator(1.0f, t.x, t.y, t.z);
 		}
 		// Update ssbo
 		skin.ssbo.copyTo(jointDQuats.data(), jointDQuats.size() * sizeof(glm::dualquat));
@@ -1079,7 +1076,7 @@ void VulkanExample::updateUniformBuffers()
 
 void VulkanExample::loadAssets()
 {
-	loadglTFFile(getAssetPath() + "models/CesiumMan/glTF/CesiumMan.gltf"); // "models/CesiumMan/glTF/CesiumMan.gltf"
+	loadglTFFile(getAssetPath() + "models/candywrap.gltf"); // "models/CesiumMan/glTF/CesiumMan.gltf"
 }
 
 void VulkanExample::prepare()

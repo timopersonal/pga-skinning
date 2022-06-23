@@ -13,13 +13,15 @@ model_to_name = {
 # Map algorithm identifiers to human-readable name.
 technique_to_name = {
     'dqs': 'Dual Quaternion Skinning',
-    'pga': 'PGA Skinning'
+    'pga': 'Bivector Interpolation Skinning',
+    'lbs': 'Linear Blend Skinning'
 }
 
 # Map algorithms identifiers to color identifier for matplotlib
 technique_to_color = {
     'dqs': 'red',
-    'pga': 'green'
+    'pga': 'green',
+    'lbs': 'blue',
 }
 
 
