@@ -8,7 +8,7 @@
             "name": "Debug",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/bin/pgaskinning",
+            "program": "${workspaceFolder}/bin/lbs",
             "args": [],
             "stopAtEntry": false,
             "cwd": "${workspaceRoot}",

@@ -2,6 +2,7 @@ import glob
 import os
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mtick
+import numpy as np
 
 # Map model identifiers to human-readable name.
 model_to_name = {
@@ -13,14 +14,14 @@ model_to_name = {
 # Map algorithm identifiers to human-readable name.
 technique_to_name = {
     'dqs': 'Dual Quaternion Skinning',
-    'pga': 'Bivector Interpolation Skinning',
+    'bis': 'Bivector Interpolation Skinning',
     'lbs': 'Linear Blend Skinning'
 }
 
 # Map algorithms identifiers to color identifier for matplotlib
 technique_to_color = {
     'dqs': 'red',
-    'pga': 'green',
+    'bis': 'green',
     'lbs': 'blue',
 }
 
@@ -31,7 +32,7 @@ def split_data(file):
     """
     parts = filter(lambda x: x != "", file.removesuffix(
         os.linesep).split(os.linesep*3))
-    return list(map(lambda x: map(float, x.split(os.linesep)[1:]), parts))
+    return list(map(lambda x: x.split(os.linesep)[1:], parts))
 
 
 data_map = dict()
@@ -50,6 +51,8 @@ fig, axes = plt.subplots(
 for i, (model_name, model_data) in enumerate(data_map.items()):
     for technique, data in model_data.items():
         volume_diff, detail_diff = data
+        volume_diff = np.array(list(map(float, volume_diff)))
+        detail_diff = np.array(list(map(float, detail_diff)))
 
         # Retrieve appropriate label and color for this technique
         label = technique_to_name.get(
@@ -65,8 +68,13 @@ for i, (model_name, model_data) in enumerate(data_map.items()):
 
         # Plot the detail differences
         axes[i, 1].plot(detail_diff[1:], label=label, color=color)
+        # axes[i, 1].fill_between(range(len(detail_diff[1:])),
+        #                         detail_diff[1:] - detail_stdev[1:]/2,
+        #                         detail_diff[1:] + detail_stdev[1:]/2,
+        #                         label=label, color=color, alpha=0.3)
         axes[i, 1].set_xlabel('$n$-th frame')
-        axes[i, 1].set_ylabel('Total difference in local detail')
+        axes[i, 1].set_ylabel('Average difference in local detail (log scale)')
+        axes[i, 1].set_yscale('log')
 
 # Set titles of columns and rows
 # https://stackoverflow.com/a/25814386

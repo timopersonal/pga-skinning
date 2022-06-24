@@ -30,13 +30,34 @@ layout (location = 4) out vec3 outLightVec;
 
 // Following functions are adapted from:
 // https://www.cs.utah.edu/~ladislav/dq/dqs.cg
+// https://gist.github.com/gszauer/3ff5001f4df5b86d2a74c74239eadea3
 vec3 QuatRotateVector(vec4 q, vec3 v) {
-    return v + 2.0*cross(q.xyz, cross(q.xyz, v) + q.w*v);
+    vec3 u = vec3(q.x, q.y, q.z);
+    float s = q.w;
+
+    return 2.0 * dot(u, v) * u + (s * s - dot(u, u)) * v + 2.0 * s * cross(u, v);
+}
+
+vec4 QMul(vec4 p, vec4 q) {
+	vec3 q_v = vec3(q.x, q.y, q.z);
+    vec3 p_v = vec3(p.x, p.y, p.z);
+
+    float q_r = q.w;
+    float p_r = p.w;
+
+    float scalar = q_r * p_r - dot(q_v, p_v);
+    vec3 vector = (p_v * q_r) + (q_v * p_r) + cross(p_v, q_v);
+
+    return vec4(vector.x, vector.y, vector.z, scalar);
 }
 
 vec3 DualQuatTransformPoint(mat2x4 blendDQ, vec3 p) {
-    vec3 t = 2.0*(blendDQ[0].x*blendDQ[1].xyz - blendDQ[1].x*blendDQ[0].xyz + cross(blendDQ[0].xyz, blendDQ[1].yzw));
-    return QuatRotateVector(blendDQ[0], p) + t;
+	vec4 Qr = blendDQ[0];
+	vec4 Qd = blendDQ[1];
+	// Important to remember that we're doing quaternion multiplication
+	vec4 t = QMul(2.0 * Qd, vec4(-Qr.x, -Qr.y, -Qr.z, Qr.w));
+
+    return QuatRotateVector(Qr, p) + t.xyz;
 }
 
 void main() 

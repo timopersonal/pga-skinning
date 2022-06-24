@@ -798,7 +798,7 @@ void VulkanExample::loadglTFFile(std::string filename)
 	double time_step = 1.0 / 30.0;
 	double time_passed = 0.0;
 	std::vector<double> volume_differences;
-	std::vector<double> detail_differences;
+	std::vector<std::vector<double>> detail_differences;
 
 	// Calculate statistics of unmorphed mesh.
 	double initial_volume = calculate_volume(vertexBuffer, indexBuffer);
@@ -834,14 +834,29 @@ void VulkanExample::loadglTFFile(std::string filename)
 		std::vector<double> deformed_local_detail = calculate_local_detail(test_vertices, indexBuffer);
 		std::vector<double> detail_difference(initial_local_detail.size());
 		for (uint32_t i = 0; i < vertexBuffer.size(); ++i)
-			detail_difference[i] = abs(initial_local_detail[i] - deformed_local_detail[i]);
-
-		double total_detail_difference = 0.0;
-		for (double diff : detail_difference)
-			total_detail_difference += diff;
-		total_detail_difference /= vertexBuffer.size();
-		detail_differences.push_back(total_detail_difference);
+			detail_difference[i] = initial_local_detail[i] - deformed_local_detail[i];
+		detail_differences.push_back(detail_difference);
 	}
+
+	// Calculate per-frame and global means
+	double sum = 0.0;
+	std::vector<double> frame_diffs;
+	for (std::vector<double> diffs : detail_differences)
+	{
+		double it_sum = 0.0;
+		for (double d : diffs)
+			it_sum += pow(d, 2.0);
+		frame_diffs.push_back(it_sum);
+		sum += it_sum;
+	}
+	double mean = sum / (detail_differences.size() * detail_differences[0].size());
+
+	// Calculate stdev
+	double std_sum = 0.0;
+	for (std::vector<double> diffs : detail_differences)
+		for (double d : diffs)
+			std_sum += pow(d - mean, 2.0);
+	double stdev = std_sum / (detail_differences.size() * detail_differences[0].size());
 
 	// https://www.codegrepper.com/code-examples/cpp/c%2B%2B+get+filename+from+path
 	std::string base_filename = filename.substr(filename.find_last_of("/\\") + 1);
@@ -857,9 +872,10 @@ void VulkanExample::loadglTFFile(std::string filename)
 	output_file << std::endl
 				<< std::endl
 				<< "Detail Differences" << std::endl;
-	for (double d : detail_differences)
-		output_file << d << std::endl;
+	for (uint32_t i = 0; i < frame_diffs.size(); ++i)
+		output_file << frame_diffs[i] << std::endl;
 	output_file.close();
+	std::cout << "Detail Difference Stdev: " << stdev << std::endl;
 
 	// Create and upload vertex and index buffer
 	size_t vertexBufferSize = vertexBuffer.size() * sizeof(VulkanglTFModel::Vertex);
@@ -1070,7 +1086,9 @@ void VulkanExample::updateUniformBuffers()
 
 void VulkanExample::loadAssets()
 {
-	loadglTFFile(getAssetPath() + "models/candywrap.gltf"); // "models/CesiumMan/glTF/CesiumMan.gltf"
+	// loadglTFFile(getAssetPath() + "models/candywrap.gltf");
+	// loadglTFFile(getAssetPath() + "models/jointbulge.gltf");
+	loadglTFFile(getAssetPath() + "models/CesiumMan/glTF/CesiumMan.gltf");
 }
 
 void VulkanExample::prepare()
